@@ -63,6 +63,59 @@ app.get('/', (_req, res) => {
 app.post('/verify-payment', paymentRoute);
 app.get('/macro-data',      macroRoute);
 app.get('/news-sentiment',  newsRoute);
+app.post('/ai-summary', async (req, res) => {
+  try {
+    const { rankings, globalRisk } = req.body;
+
+    if (!rankings || !Array.isArray(rankings)) {
+      return res.status(400).json({ error: 'rankings array required' });
+    }
+
+    // Build the analyst prompt (same logic that was previously in the frontend)
+    const rankText = rankings.map((r, i) => {
+      const sign  = r.score > 0 ? '+' : '';
+      const bias  = r.score > 1 ? 'Bullish' : r.score < -1 ? 'Bearish' : 'Neutral';
+      return `${i + 1}. ${r.currency}: score ${sign}${r.score} (${bias})`;
+    }).join('\n');
+
+    const prompt = `You are a senior forex analyst. Based on the following currency strength scores from a fundamentals-based scoring engine, write a concise 3–4 sentence weekly bias summary. Speak like a professional analyst, not a chatbot. Do not use bullet points. Be direct about which currencies to buy and which to sell.
+
+Global Risk Sentiment: ${globalRisk || 'not set'}
+
+Currency Rankings (strongest to weakest):
+${rankText}
+
+Write the bias summary now:`;
+
+    // Call Gemini
+    const geminiRes = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${process.env.GEMINI_API_KEY}`,
+      {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify({
+          contents: [{ parts: [{ text: prompt }] }]
+        })
+      }
+    );
+
+    if (!geminiRes.ok) {
+      const errText = await geminiRes.text();
+      console.error('[TES backend] Gemini error:', geminiRes.status, errText);
+      return res.status(502).json({ error: 'Gemini API error', detail: errText });
+    }
+
+    const geminiData = await geminiRes.json();
+    const summary = geminiData?.candidates?.[0]?.content?.parts?.[0]?.text
+      || 'Unable to generate summary at this time.';
+
+    return res.json({ summary });
+
+  } catch (err) {
+    console.error('[TES backend] /ai-summary error:', err.message);
+    return res.status(500).json({ error: 'Internal server error', detail: err.message });
+  }
+});
 
 /* ─── GLOBAL ERROR HANDLER ───────────────────────────────── */
 app.use((err, _req, res, _next) => {
