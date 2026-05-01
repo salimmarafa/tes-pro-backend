@@ -37,9 +37,8 @@ const ALL_ORIGINS = [...new Set([...ALLOWED, ...DEV_ORIGINS])];
 
 // Single cors() call with full config — no duplicate app.use(cors())
 app.use(cors({
-  origin: (origin, cb) => {
-    // Allow requests with no origin (curl, Postman, about:blank, server-to-server)
-    if (!origin) return cb(null, true);
+ origin: (origin, cb) => {
+    if (!origin || origin === 'null') return cb(null, true);
     if (ALL_ORIGINS.includes(origin)) return cb(null, true);
     cb(new Error(`CORS: Origin not allowed → ${origin}`));
   },
