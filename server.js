@@ -14,6 +14,8 @@ const macroRoute   = require('./routes/macro');
 const newsRoute    = require('./routes/news');
 
 const app  = express();
+const cors = require('cors');
+app.use(cors());
 const PORT = process.env.PORT || 3001;
 
 /* ─── CORS ────────────────────────────────────────────────────
