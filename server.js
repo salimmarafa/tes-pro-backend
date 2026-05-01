@@ -1,21 +1,19 @@
 /* ═══════════════════════════════════════════════════════════
    server.js — TES Pro Backend
-   Routes: /verify-payment  /macro-data  /news-sentiment
+   Routes: /verify-payment  /macro-data  /news-sentiment  /ai-summary
    ═══════════════════════════════════════════════════════════ */
 
 'use strict';
 
 require('dotenv').config();
 const express = require('express');
-const cors    = require('cors');
+const cors    = require('cors');  // ← declared ONCE here only
 
 const paymentRoute = require('./routes/payment');
 const macroRoute   = require('./routes/macro');
 const newsRoute    = require('./routes/news');
 
 const app  = express();
-const cors = require('cors');
-app.use(cors());
 const PORT = process.env.PORT || 3001;
 
 /* ─── CORS ────────────────────────────────────────────────────
@@ -28,7 +26,6 @@ const ALLOWED = RAW_ORIGINS
   .map(o => o.trim())
   .filter(Boolean);
 
-// Always allow localhost dev origins
 const DEV_ORIGINS = [
   'http://localhost:3000',
   'http://localhost:5500',
@@ -38,9 +35,10 @@ const DEV_ORIGINS = [
 
 const ALL_ORIGINS = [...new Set([...ALLOWED, ...DEV_ORIGINS])];
 
+// Single cors() call with full config — no duplicate app.use(cors())
 app.use(cors({
   origin: (origin, cb) => {
-    // Allow requests with no origin (e.g. curl, Postman, server-to-server)
+    // Allow requests with no origin (curl, Postman, about:blank, server-to-server)
     if (!origin) return cb(null, true);
     if (ALL_ORIGINS.includes(origin)) return cb(null, true);
     cb(new Error(`CORS: Origin not allowed → ${origin}`));
@@ -57,7 +55,7 @@ app.get('/', (_req, res) => {
     service: 'TES Pro Backend',
     status:  'online',
     version: '1.0.0',
-    routes:  ['/verify-payment', '/macro-data', '/news-sentiment']
+    routes:  ['/verify-payment', '/macro-data', '/news-sentiment', '/ai-summary']
   });
 });
 
@@ -65,6 +63,8 @@ app.get('/', (_req, res) => {
 app.post('/verify-payment', paymentRoute);
 app.get('/macro-data',      macroRoute);
 app.get('/news-sentiment',  newsRoute);
+
+/* ─── AI SUMMARY ──────────────────────────────────────────── */
 app.post('/ai-summary', async (req, res) => {
   try {
     const { rankings, globalRisk } = req.body;
@@ -73,10 +73,9 @@ app.post('/ai-summary', async (req, res) => {
       return res.status(400).json({ error: 'rankings array required' });
     }
 
-    // Build the analyst prompt (same logic that was previously in the frontend)
     const rankText = rankings.map((r, i) => {
-      const sign  = r.score > 0 ? '+' : '';
-      const bias  = r.score > 1 ? 'Bullish' : r.score < -1 ? 'Bearish' : 'Neutral';
+      const sign = r.score > 0 ? '+' : '';
+      const bias = r.score > 1 ? 'Bullish' : r.score < -1 ? 'Bearish' : 'Neutral';
       return `${i + 1}. ${r.currency}: score ${sign}${r.score} (${bias})`;
     }).join('\n');
 
@@ -89,7 +88,6 @@ ${rankText}
 
 Write the bias summary now:`;
 
-    // Call Gemini
     const geminiRes = await fetch(
       `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${process.env.GEMINI_API_KEY}`,
       {
