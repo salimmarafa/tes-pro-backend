@@ -54,7 +54,7 @@ app.get('/', (_req, res) => {
     service: 'TES Pro Backend',
     status:  'online',
     version: '1.0.0',
-    routes:  ['/verify-payment', '/macro-data', '/news-sentiment', '/ai-summary']
+  routes:  ['/verify-payment', '/macro-data', '/news-sentiment'] 
   });
 });
 
